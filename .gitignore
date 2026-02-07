@@ -1,0 +1,20 @@
+# Minecraft specific
+/world
+/world-backup/history/*.zip
+server-files/
+*.log
+session.lock
+*.lock
+*.log.gz
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+result
+*.iso
