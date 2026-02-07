@@ -6,28 +6,36 @@ A declarative NixOS configuration for running All the Mons modded Minecraft serv
 **License**: GNU General Public License v3.0  
 **Platform**: NixOS 24.11, x86_64-linux  
 
-## Quick Start (Drop-In File Setup)
+## Quick Start (Package Files into ISO)
 
 The easiest way to get started:
 
 ```bash
-# 1. Build the ISO
+# 1. Place your server files in the project directory
+cp ~/Downloads/AllTheMons-ServerFiles-*.zip server-files/
+cp ~/save.zip world-backup/  # Optional: world backup
+
+# 2. Build the ISO (packages all files)
 nix build .#usb-image
 
-# 2. Flash to USB (creates 2 partitions)
+# 3. Flash to USB
 dd if=result/iso/nixos.iso of=/dev/sdX bs=4M status=progress
 
-# 3. Mount the DATA partition and create server-files directory
-mkdir -p /mnt/usb/server-files
-
-# 4. Download All the Mons ServerFiles.zip from CurseForge
-# Copy to /mnt/usb/server-files/
-
-# 5. (Optional) Add world backup
-cp save.zip /mnt/usb/server-files/
-
-# 6. Boot USB - auto-setup runs on first boot!
+# 4. Boot USB - auto-setup runs on first boot!
 ```
+
+### How It Works
+
+The entire `server-files/` and `world-backup/` directories are packaged into the ISO during build. When you boot:
+
+1. System copies all files from ISO to `/srv/minecraft/`
+2. Extracts any `.zip` files automatically
+3. Runs any installer JARs (Forge, NeoForge, etc.)
+4. Accepts EULA automatically
+5. Restores world backup if present
+6. Server is ready to start with `mc-start`
+
+No manual setup required after flashing!
 
 ## Overview
 
