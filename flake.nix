@@ -63,25 +63,24 @@
         
         boot.kernelParams = [ "quiet" "mitigations=off" "idle=poll" ];
         
-        swapDevices = [{ device = "/swapfile"; size = 4096; priority = 1; }];
-        
         zramSwap = {
           enable = true;
           algorithm = "lz4";
-          memoryPercent = 50;
+          memoryPercent = 30;
           priority = 5;
         };
 
         fileSystems."/" = {
-          device = "/dev/disk/by-label/nixos";
+          device = "/dev/disk/by-label/NIXOS_SD";
           fsType = "ext4";
           options = [ "noatime" "nodiratime" "commit=120" ];
         };
 
+        # Backup partition - using a different label than the USB mount
         fileSystems."/srv/backup" = {
-          device = "/dev/disk/by-label/DATA";
+          device = "/dev/disk/by-label/BACKUP";
           fsType = "ext4";
-          options = [ "noatime" "nodiratime" "commit=300" ];
+          options = [ "noatime" "nodiratime" "commit=300" "nofail" ];
         };
 
         # Mount USB data partition for drop-in server files
@@ -168,6 +167,7 @@
             Type = "oneshot";
             User = "minecraft";
             Group = "minecraft";
+            TimeoutStartSec = "300";
           };
           
           script = ''
@@ -208,6 +208,7 @@
             Type = "oneshot";
             User = "minecraft";
             Group = "minecraft";
+            TimeoutStartSec = "120";
           };
           script = config.systemd.services.minecraft-backup.script;
         };
@@ -243,6 +244,7 @@
             if [ -z "$(ls -A /srv/minecraft 2>/dev/null)" ]; then
               echo "No server files found on ISO."
               echo "Add files to the server-files/ directory before building."
+              # Don't mark as complete so it can retry
               exit 0
             fi
             
@@ -254,7 +256,10 @@
             for zip in *.zip; do
               if [ -f "$zip" ]; then
                 echo "Extracting: $zip"
-                unzip -o "$zip" || echo "Failed to extract $zip, continuing..."
+                if ! unzip -o "$zip"; then
+                  echo "ERROR: Failed to extract $zip"
+                  exit 1
+                fi
               fi
             done
             
@@ -262,7 +267,9 @@
             for jar in *forge*.jar *installer*.jar neoforge*.jar; do
               if [ -f "$jar" ]; then
                 echo "Running installer: $jar"
-                java -jar "$jar" --installServer || echo "Install may have failed, continuing..."
+                if ! java -jar "$jar" --installServer; then
+                  echo "WARNING: Installer may have failed for $jar"
+                fi
               fi
             done
             
@@ -278,7 +285,7 @@
             # Set ownership
             chown -R minecraft:minecraft /srv/minecraft
             
-            # Mark as complete
+            # Only mark as complete if we successfully got here
             touch /srv/minecraft/.setup-complete
             echo "Minecraft server setup complete!"
             echo "Run 'mc-start' to start the server"
@@ -305,6 +312,12 @@
           DefaultTimeoutStopSec=10s
           DefaultTimeoutStartSec=10s
         '';
+
+        # Limit journald size since we're using tmpfs
+        services.journald.extraConfig = ''
+          SystemMaxUse=100M
+          RuntimeMaxUse=100M
+        '';
         
         boot.supportedFilesystems = [ "ext4" "vfat" ];
 
@@ -312,6 +325,8 @@
           ╔══════════════════════════════════════════════════════════╗
           ║           Minecraft All the Mons Server                 ║
           ╚══════════════════════════════════════════════════════════╝
+          
+          ⚠️  SECURITY: Change RCON password in server.properties!
           
           Server commands:
             mc-start      Start the server
@@ -352,10 +367,17 @@
           Automatic: Every 6 hours + on shutdown
           Manual:    mc-backup
           List:      mc-backups
+          Location:  /srv/backup/
           
           SECURITY
           --------
-          Change rcon.password in server.properties before using RCON
+          ⚠️  IMPORTANT: Change rcon.password in server.properties before using RCON
+          Default RCON password "ChangeMe" is NOT SECURE
+          
+          PORTS
+          -----
+          Game Port: 33777 (custom, not default 25565)
+          RCON Port: 25575
           
           For help, check server logs: mc-logs
         '';
@@ -383,16 +405,16 @@
         
         backup-tool = worldBackup;
         
-        # ISO image for USB flashing (bootable with dd or Rufus)
-        usb-image = nixos-generators.nixosGenerate {
+        # SD card image for x86_64 systems
+        sd-image = nixos-generators.nixosGenerate {
           inherit system;
           modules = [ commonConfig ];
-          format = "iso";
+          format = "sd-x86_64";
         };
       };
 
-      # NixOS configuration for direct installation
-      nixosConfigurations.minecraft-usb = nixpkgs.lib.nixosSystem {
+      # NixOS configuration for SD card installation
+      nixosConfigurations.minecraft-sd = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [ commonConfig ];
       };

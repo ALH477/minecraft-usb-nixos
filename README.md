@@ -1,12 +1,12 @@
-# Minecraft All the Mons Server - NixOS USB Edition
+# Minecraft All the Mons Server - NixOS SD Edition
 
-A declarative NixOS configuration for running All the Mons modded Minecraft servers from USB storage with optimized performance, automatic backups, and **drop-in file setup**.
+A declarative NixOS configuration for running All the Mons modded Minecraft servers from SD card storage with optimized performance, automatic backups, and **drop-in file setup**.
 
 **Author**: ALH477  
 **License**: GNU General Public License v3.0  
 **Platform**: NixOS 24.11, x86_64-linux  
 
-## Quick Start (Package Files into ISO)
+## Quick Start (Package Files for SD Card)
 
 The easiest way to get started:
 
@@ -15,13 +15,13 @@ The easiest way to get started:
 cp ~/Downloads/AllTheMons-ServerFiles-*.zip server-files/
 cp ~/save.zip world-backup/  # Optional: world backup
 
-# 2. Build the ISO (packages all files)
-nix build .#usb-image
+# 2. Build the SD card image (packages all files)
+nix build .#sd-image
 
-# 3. Flash to USB
-dd if=result/iso/nixos.iso of=/dev/sdX bs=4M status=progress
+# 3. Flash to SD card
+dd if=result/sdImage/nixos-sd-image-24.11-x86_64-linux.img of=/dev/sdX bs=4M status=progress
 
-# 4. Boot USB - auto-setup runs on first boot!
+# 4. Boot from SD card - auto-setup runs on first boot!
 ```
 
 ### How It Works
@@ -75,67 +75,66 @@ This project provides a complete, reproducible NixOS configuration optimized for
 
 This is the easiest method - no command line setup on the server required!
 
-#### Step 1: Build the ISO
+#### Step 1: Build the SD card image
 
 ```bash
 # Clone or download this repository
-cd minecraft-usb
+cd minecraft-sd
 
-# Build the bootable ISO
-nix build .#usb-image
+# Build the SD card image
+nix build .#sd-image
 
-# The ISO will be at: result/iso/nixos.iso
+# The image will be at: result/sdImage/nixos-sd-image-24.11-x86_64-linux.img
 ```
 
-#### Step 2: Flash to USB
+#### Step 2: Flash to SD card
 
 **Linux/Mac:**
 ```bash
-# Find your USB device (BE CAREFUL!)
+# Find your SD card device (BE CAREFUL!)
 lsblk
 
-# Flash the ISO (replace sdX with your device!)
-sudo dd if=result/iso/nixos.iso of=/dev/sdX bs=4M status=progress
+# Flash the image (replace sdX with your device!)
+sudo dd if=result/sdImage/nixos-sd-image-24.11-x86_64-linux.img of=/dev/sdX bs=4M status=progress
 sync
 ```
 
 **Windows:**
-Use [Rufus](https://rufus.ie) to flash the ISO to USB.
+Use [Rufus](https://rufus.ie) to flash the image to SD card.
 
 #### Step 3: Add Server Files
 
-The USB will have two partitions after flashing:
+The SD card will have one partition after flashing:
 - **Partition 1**: NixOS system (read-only, bootable)
-- **Partition 2**: DATA (read-write, for server files)
 
-**Mount the DATA partition and add files:**
+**Mount the SD card and add files:**
 
 ```bash
-# Mount the DATA partition
-sudo mkdir -p /mnt/minecraft-usb
-sudo mount /dev/disk/by-label/DATA /mnt/minecraft-usb
+# Mount the SD card
+sudo mkdir -p /mnt/minecraft-sd
+sudo mount /dev/disk/by-label/NIXOS /mnt/minecraft-sd
 
 # Create server-files directory
-sudo mkdir -p /mnt/minecraft-usb/server-files
+sudo mkdir -p /mnt/minecraft-sd/server-files
 
 # Download All the Mons Server Files from CurseForge
 # Copy the ServerFiles-*.zip to the server-files directory:
-sudo cp ~/Downloads/AllTheMons-ServerFiles-*.zip /mnt/minecraft-usb/server-files/
+sudo cp ~/Downloads/AllTheMons-ServerFiles-*.zip /mnt/minecraft-sd/server-files/
 
 # (Optional) Add world backup if you have one:
-sudo cp ~/save.zip /mnt/minecraft-usb/server-files/
+sudo cp ~/save.zip /mnt/minecraft-sd/server-files/
 
 # Unmount
-sudo umount /mnt/minecraft-usb
+sudo umount /mnt/minecraft-sd
 ```
 
 #### Step 4: Boot and Play!
 
-1. Insert USB into your server machine
-2. Boot from USB (may need to press F12/F2/Del for boot menu)
+1. Insert SD card into your server machine
+2. Boot from SD card (may need to press F12/F2/Del for boot menu)
 3. The system will:
    - Boot NixOS
-   - Auto-detect server files on USB
+   - Auto-detect server files on SD card
    - Extract and install Forge automatically
    - Accept EULA
    - Restore world backup (if present)
@@ -177,16 +176,14 @@ chown -R minecraft:minecraft /srv/minecraft
 mc-start
 ```
 
-## USB Partition Layout
+## SD Card Partition Layout
 
-After flashing, your USB will have this layout:
+After flashing, your SD card will have this layout:
 
 ```
-/dev/sdX (USB Device)
-├── /dev/sdX1 (ISO - bootable, read-only)
-│   └── NixOS system files
-│
-└── /dev/sdX2 (DATA - read-write, labeled "DATA")
+/dev/sdX (SD Card Device)
+└── /dev/sdX1 (ISO - bootable, read-only)
+    └── NixOS system files
     ├── server-files/
     │   ├── AllTheMons-ServerFiles-*.zip  (Required)
     │   └── save.zip                       (Optional - world backup)
@@ -273,27 +270,27 @@ If you don't have Nix installed, you can use Docker:
 
 ```bash
 # Build the Docker image
-docker build -t mc-usb-builder .
+docker build -t mc-sd-builder .
 
-# Build the ISO (privileged mode required)
+# Build the SD card image (privileged mode required)
 docker run --privileged \
   -v $(pwd):/build \
   -v $(pwd)/output:/output \
-  mc-usb-builder
+  mc-sd-builder
 
-# Output will be in ./output/nixos-minecraft-usb.iso
+# Output will be in ./output/nixos-minecraft-sd.img
 ```
 
 **Docker commands:**
 ```bash
 # Just check the flake
-docker run -v $(pwd):/build mc-usb-builder check
+docker run -v $(pwd):/build mc-sd-builder check
 
 # Development shell
-docker run -it -v $(pwd):/build mc-usb-builder shell
+docker run -it -v $(pwd):/build mc-sd-builder shell
 
 # Show help
-docker run mc-usb-builder help
+docker run mc-sd-builder help
 ```
 
 ### Option 2: Build with Nix (Native)
@@ -301,12 +298,12 @@ docker run mc-usb-builder help
 If you have Nix with flakes enabled:
 
 ```bash
-# Build ISO
-nix build .#usb-image
-# Result: result/iso/nixos.iso
+# Build SD card image
+nix build .#sd-image
+# Result: result/sdImage/nixos-sd-image-24.11-x86_64-linux.img
 
 # Build system closure
-nix build .#nixosConfigurations.minecraft-usb.config.system.build.toplevel
+nix build .#nixosConfigurations.minecraft-sd.config.system.build.toplevel
 
 # Update flake
 nix flake update
@@ -319,7 +316,6 @@ Copyright (C) 2025 ALH477 - GPL v3.0
 ## Files
 
 - `flake.nix` - Main NixOS configuration
-- `easy-install.sh` - Interactive setup wizard
 - `README.md` - This file
 - `world-backup/` - Directory for world backups
-- `server-files/` - Drop-in server files (on USB DATA partition)
+- `server-files/` - Drop-in server files (on SD card)
