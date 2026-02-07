@@ -107,6 +107,11 @@
           vim htop mcrcon unzip zip curl wget git
         ];
 
+        # Copy entire directories to ISO for drop-in setup
+        # These are mounted read-only from the ISO
+        environment.etc."server-files".source = ./server-files;
+        environment.etc."world-backup".source = ./world-backup;
+
         users.users.minecraft = {
           isSystemUser = true;
           group = "minecraft";
@@ -207,9 +212,9 @@
           script = config.systemd.services.minecraft-backup.script;
         };
 
-        # Auto-setup from USB drop-in files
+        # Auto-setup from packaged files on ISO
         systemd.services.minecraft-auto-setup = {
-          description = "Auto-setup Minecraft from USB server-files";
+          description = "Auto-setup Minecraft from packaged files";
           wantedBy = [ "multi-user.target" ];
           before = [ "minecraft-server.service" ];
           after = [ "local-fs.target" ];
@@ -226,59 +231,48 @@
               exit 0
             fi
             
-            # Look for server files on USB
-            echo "Looking for server files in /mnt/usb/server-files/..."
+            echo "Looking for packaged server files..."
             
-            # Wait for USB mount (in case it's not ready)
-            for i in $(seq 1 30); do
-              if [ -d /mnt/usb/server-files ]; then
-                break
+            # Copy all files from /etc/server-files (packaged in ISO)
+            if [ -d /etc/server-files ]; then
+              echo "Copying server files from ISO..."
+              cp -r /etc/server-files/* /srv/minecraft/ 2>/dev/null || true
+            fi
+            
+            # Check if we have any files
+            if [ -z "$(ls -A /srv/minecraft 2>/dev/null)" ]; then
+              echo "No server files found on ISO."
+              echo "Add files to the server-files/ directory before building."
+              exit 0
+            fi
+            
+            echo "Found server files, setting up..."
+            
+            cd /srv/minecraft
+            
+            # Extract any zip files
+            for zip in *.zip; do
+              if [ -f "$zip" ]; then
+                echo "Extracting: $zip"
+                unzip -o "$zip" || echo "Failed to extract $zip, continuing..."
               fi
-              sleep 1
             done
             
-            if [ ! -d /mnt/usb/server-files ]; then
-              echo "USB server-files directory not found. Manual setup required:"
-              echo "  1. Download All the Mons ServerFiles.zip from CurseForge"
-              echo "  2. Mount the USB DATA partition"
-              echo "  3. Copy ServerFiles.zip to server-files/ directory"
-              echo "  4. Reboot or run: mc-setup"
-              exit 0
-            fi
-            
-            # Find ServerFiles zip
-            SERVER_ZIP=$(find /mnt/usb/server-files -name "*ServerFiles*.zip" -type f 2>/dev/null | head -1)
-            
-            if [ -z "$SERVER_ZIP" ]; then
-              echo "No ServerFiles zip found in /mnt/usb/server-files/"
-              echo "Please add All the Mons ServerFiles.zip to the USB"
-              exit 0
-            fi
-            
-            echo "Found server files: $SERVER_ZIP"
-            echo "Setting up Minecraft server..."
-            
-            # Extract server files
-            cd /srv/minecraft
-            unzip -o "$SERVER_ZIP" || {
-              echo "Failed to extract server files"
-              exit 1
-            }
-            
-            # Find and run Forge installer
-            FORGE_JAR=$(find /srv/minecraft -name "forge-*.jar" -o -name "neoforge-*.jar" 2>/dev/null | head -1)
-            if [ -n "$FORGE_JAR" ]; then
-              echo "Installing Forge: $FORGE_JAR"
-              java -jar "$FORGE_JAR" --installServer || echo "Forge install may have failed, continuing..."
-            fi
+            # Find and run any installer jars
+            for jar in *forge*.jar *installer*.jar neoforge*.jar; do
+              if [ -f "$jar" ]; then
+                echo "Running installer: $jar"
+                java -jar "$jar" --installServer || echo "Install may have failed, continuing..."
+              fi
+            done
             
             # Accept EULA
             echo "eula=true" > /srv/minecraft/eula.txt
             
-            # Check for world backup
-            if [ -f /mnt/usb/server-files/save.zip ]; then
-              echo "Restoring world from save.zip..."
-              unzip -o /mnt/usb/server-files/save.zip -d /srv/minecraft/
+            # Copy world backup if exists
+            if [ -d /etc/world-backup ]; then
+              echo "Copying world backup..."
+              cp -r /etc/world-backup/* /srv/minecraft/ 2>/dev/null || true
             fi
             
             # Set ownership
