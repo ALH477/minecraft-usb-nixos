@@ -259,19 +259,48 @@ mc-restart
 
 ## Building
 
-### Build ISO
+### Option 1: Build with Docker (Recommended for non-NixOS users)
+
+If you don't have Nix installed, you can use Docker:
+
 ```bash
+# Build the Docker image
+docker build -t mc-usb-builder .
+
+# Build the ISO (privileged mode required)
+docker run --privileged \
+  -v $(pwd):/build \
+  -v $(pwd)/output:/output \
+  mc-usb-builder
+
+# Output will be in ./output/nixos-minecraft-usb.iso
+```
+
+**Docker commands:**
+```bash
+# Just check the flake
+docker run -v $(pwd):/build mc-usb-builder check
+
+# Development shell
+docker run -it -v $(pwd):/build mc-usb-builder shell
+
+# Show help
+docker run mc-usb-builder help
+```
+
+### Option 2: Build with Nix (Native)
+
+If you have Nix with flakes enabled:
+
+```bash
+# Build ISO
 nix build .#usb-image
 # Result: result/iso/nixos.iso
-```
 
-### Build System Closure
-```bash
+# Build system closure
 nix build .#nixosConfigurations.minecraft-usb.config.system.build.toplevel
-```
 
-### Update Flake
-```bash
+# Update flake
 nix flake update
 ```
 
